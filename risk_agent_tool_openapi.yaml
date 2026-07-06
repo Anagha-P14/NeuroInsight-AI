@@ -1,0 +1,73 @@
+openapi: 3.0.0
+info:
+  title: Alzheimer's Risk Prediction Tool
+  version: "1.0.0"
+  description: >
+    Given a patient's clinical and lifestyle data, returns an Alzheimer's
+    risk probability, a risk category, and top contributing factors.
+servers:
+  - url: https://risk-prediction-api-ubgdnmf2aq-uc.a.run.app
+paths:
+  /predict:
+    post:
+      operationId: predictAlzheimersRisk
+      summary: Predict Alzheimer's diagnosis risk for a patient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientInput'
+      responses:
+        '200':
+          description: Risk prediction result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionResponse'
+components:
+  schemas:
+    PatientInput:
+      type: object
+      required: [Age, Gender, MMSE, FunctionalAssessment, ADL]
+      properties:
+        Age: { type: integer }
+        Gender: { type: integer, description: "0=female, 1=male" }
+        Ethnicity: { type: integer }
+        EducationLevel: { type: integer }
+        BMI: { type: number }
+        Smoking: { type: integer }
+        AlcoholConsumption: { type: number }
+        PhysicalActivity: { type: number }
+        DietQuality: { type: number }
+        SleepQuality: { type: number }
+        FamilyHistoryAlzheimers: { type: integer }
+        CardiovascularDisease: { type: integer }
+        Diabetes: { type: integer }
+        Depression: { type: integer }
+        HeadInjury: { type: integer }
+        Hypertension: { type: integer }
+        SystolicBP: { type: number }
+        DiastolicBP: { type: number }
+        CholesterolTotal: { type: number }
+        CholesterolLDL: { type: number }
+        CholesterolHDL: { type: number }
+        CholesterolTriglycerides: { type: number }
+        MMSE: { type: number, description: "Mini-Mental State Exam score" }
+        FunctionalAssessment: { type: number }
+        MemoryComplaints: { type: integer }
+        BehavioralProblems: { type: integer }
+        ADL: { type: number, description: "Activities of Daily Living score" }
+        Confusion: { type: integer }
+        Disorientation: { type: integer }
+        PersonalityChanges: { type: integer }
+        DifficultyCompletingTasks: { type: integer }
+        Forgetfulness: { type: integer }
+    PredictionResponse:
+      type: object
+      properties:
+        risk_probability: { type: number }
+        risk_category: { type: string, enum: [Low, Moderate, High] }
+        top_contributing_factors:
+          type: array
+          items: { type: string }

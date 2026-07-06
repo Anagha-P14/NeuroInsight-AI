@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeuroAI — Alzheimer's Risk & Care Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#16202B;
+    --ink-soft:#4A5A62;
+    --paper:#F5F7F6;
+    --panel:#FFFFFF;
+    --line:#DCE3E1;
+    --fog:#B9C4C6;
+    --clarity:#2E6F6E;
+    --clarity-light:#4C948F;
+    --clarity-wash:#E7F0EF;
+    --amber:#D98E3E;
+    --amber-wash:#FBF0E1;
+    --coral:#C1483D;
+    --coral-wash:#F8E9E7;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;}
+  h1,h2,h3{font-family:'Fraunces',serif;font-weight:500;margin:0;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+
+  /* ---- Shell ---- */
+  .shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh;}
+  .sidebar{background:var(--ink);color:#EDEFEE;padding:28px 20px;display:flex;flex-direction:column;gap:6px;}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:32px;}
+  .brand-mark{width:34px;height:34px;border-radius:50%;background:conic-gradient(from 220deg, var(--clarity-light), var(--fog) 60%, transparent 80%);}
+  .brand-name{font-family:'Fraunces',serif;font-size:20px;letter-spacing:.3px;}
+  .brand-sub{font-size:11px;color:#9AA6A4;letter-spacing:.08em;text-transform:uppercase;margin-top:-2px;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;cursor:pointer;color:#C7CFCD;font-size:14.5px;transition:background .15s;}
+  .nav-item:hover{background:rgba(255,255,255,.06);}
+  .nav-item.active{background:var(--clarity);color:#fff;}
+  .nav-dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.6;}
+  .sidebar-foot{margin-top:auto;font-size:11.5px;color:#7C8A88;line-height:1.5;}
+
+  main{padding:34px 42px;max-width:1180px;}
+  .view{display:none;}
+  .view.active{display:block;animation:rise .35s ease;}
+  @keyframes rise{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+  .view-head{margin-bottom:26px;}
+  .eyebrow{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--clarity);font-weight:600;margin-bottom:6px;}
+  .view-head h2{font-size:28px;}
+  .view-head p{color:var(--ink-soft);margin-top:6px;font-size:14.5px;max-width:640px;}
+
+  /* ---- Cards ---- */
+  .grid{display:grid;gap:18px;}
+  .cols-4{grid-template-columns:repeat(4,1fr);}
+  .cols-2{grid-template-columns:1.3fr 1fr;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px;}
+  .kpi-label{font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em;}
+  .kpi-value{font-family:'Fraunces',serif;font-size:32px;margin-top:6px;}
+  .kpi-note{font-size:12px;color:var(--ink-soft);margin-top:4px;}
+  .card h3{font-size:15px;margin-bottom:14px;}
+
+  /* ---- Risk agent ---- */
+  .agent-layout{display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start;}
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .field label{font-size:12px;color:var(--ink-soft);display:block;margin-bottom:5px;}
+  .field input,.field select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;font-size:14px;font-family:inherit;background:#FCFDFD;}
+  .field input:focus,.field select:focus{outline:2px solid var(--clarity-light);border-color:var(--clarity);}
+  .btn{background:var(--clarity);color:#fff;border:none;padding:11px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-top:16px;}
+  .btn:hover{background:#255957;}
+  .btn.ghost{background:transparent;color:var(--clarity);border:1px solid var(--clarity);}
+
+  .gauge-wrap{display:flex;flex-direction:column;align-items:center;text-align:center;}
+  .gauge-value{font-family:'Fraunces',serif;font-size:40px;margin-top:8px;}
+  .risk-pill{display:inline-block;padding:4px 14px;border-radius:20px;font-size:12.5px;font-weight:600;margin-top:6px;}
+  .risk-Low{background:var(--clarity-wash);color:var(--clarity);}
+  .risk-Moderate{background:var(--amber-wash);color:#9C6323;}
+  .risk-High{background:var(--coral-wash);color:var(--coral);}
+  .factor-list{list-style:none;padding:0;margin:14px 0 0;text-align:left;width:100%;}
+  .factor-list li{font-size:13px;padding:7px 0;border-top:1px solid var(--line);color:var(--ink-soft);}
+  .agent-note{font-size:11.5px;color:var(--ink-soft);background:var(--paper);border:1px dashed var(--line);padding:10px 12px;border-radius:8px;margin-top:16px;}
+
+  /* ---- Patients ---- */
+  .search-row{display:flex;gap:10px;margin-bottom:16px;}
+  .search-row input{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:8px;font-family:inherit;}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);padding:10px 8px;border-bottom:1px solid var(--line);}
+  td{padding:11px 8px;border-bottom:1px solid var(--line);}
+  tr.patient-row{cursor:pointer;}
+  tr.patient-row:hover{background:var(--paper);}
+  .tag{padding:3px 9px;border-radius:14px;font-size:11.5px;font-weight:600;}
+
+  .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(22,32,43,.45);align-items:center;justify-content:center;z-index:20;}
+  .modal-backdrop.active{display:flex;}
+  .modal{background:#fff;border-radius:var(--radius);padding:26px;width:420px;max-height:80vh;overflow:auto;}
+  .modal h3{margin-bottom:14px;}
+  .modal-row{display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;border-bottom:1px solid var(--line);}
+  .modal-close{float:right;background:none;border:none;font-size:18px;cursor:pointer;color:var(--ink-soft);}
+
+  /* ---- Appointments ---- */
+  .confirm-box{background:var(--clarity-wash);border:1px solid var(--clarity-light);border-radius:8px;padding:14px 16px;margin-top:16px;font-size:13.5px;color:#1E4C4A;display:none;}
+  .confirm-box.active{display:block;}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      <div>
+        <div class="brand-name">NeuroAI</div>
+        <div class="brand-sub">Memory Care Console</div>
+      </div>
+    </div>
+    <div class="nav-item active" data-view="stats"><span class="nav-dot"></span> Population Overview</div>
+    <div class="nav-item" data-view="agent"><span class="nav-dot"></span> Risk Prediction Agent</div>
+    <div class="nav-item" data-view="patients"><span class="nav-dot"></span> Patient Records</div>
+    <div class="nav-item" data-view="appointments"><span class="nav-dot"></span> Book Appointment</div>
+    <div class="sidebar-foot">Model: XGBoost v1<br>Served via Cloud Run<br>Demo data — not real patients</div>
+  </aside>
+
+  <main>
+
+    <!-- ===================== STATS VIEW ===================== -->
+    <section class="view active" id="view-stats">
+      <div class="view-head">
+        <div class="eyebrow">Cohort snapshot</div>
+        <h2>Population Overview</h2>
+        <p>Aggregate statistics from the training cohort (2,149 patients) used to build the risk model.</p>
+      </div>
+      <div class="grid cols-4" style="margin-bottom:18px;">
+        <div class="card"><div class="kpi-label">Patients</div><div class="kpi-value mono">2,149</div><div class="kpi-note">records analyzed</div></div>
+        <div class="card"><div class="kpi-label">Diagnosis rate</div><div class="kpi-value mono">35.4%</div><div class="kpi-note">760 positive cases</div></div>
+        <div class="card"><div class="kpi-label">Avg. age</div><div class="kpi-value mono">74.9</div><div class="kpi-note">years, cohort mean</div></div>
+        <div class="card"><div class="kpi-label">Family history</div><div class="kpi-value mono">25.2%</div><div class="kpi-note">have a family history</div></div>
+      </div>
+      <div class="grid cols-2">
+        <div class="card">
+          <h3>Diagnosis distribution</h3>
+          <canvas id="chartDiagnosis" height="180"></canvas>
+        </div>
+        <div class="card">
+          <h3>Mean MMSE score by outcome</h3>
+          <canvas id="chartMMSE" height="180"></canvas>
+          <p class="kpi-note" style="margin-top:10px;">Lower MMSE (Mini-Mental State Exam) correlates with diagnosed cases — 12.0 vs 16.3.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== AGENT VIEW ===================== -->
+    <section class="view" id="view-agent">
+      <div class="view-head">
+        <div class="eyebrow">XGBoost · served via Cloud Run</div>
+        <h2>Risk Prediction Agent</h2>
+        <p>Enter a patient's clinical profile to get a risk probability from the trained model. This calls the same endpoint your Gemini Enterprise agent uses.</p>
+      </div>
+      <div class="agent-layout">
+        <div class="card">
+          <h3>Patient inputs</h3>
+          <div class="field-grid" id="agentFields">
+            <div class="field"><label>Age</label><input type="number" id="f_Age" value="74"></div>
+            <div class="field"><label>Gender</label><select id="f_Gender"><option value="0">Female</option><option value="1">Male</option></select></div>
+            <div class="field"><label>BMI</label><input type="number" id="f_BMI" value="26.5"></div>
+            <div class="field"><label>MMSE score</label><input type="number" id="f_MMSE" value="15"></div>
+            <div class="field"><label>Functional Assessment</label><input type="number" id="f_FunctionalAssessment" value="5"></div>
+            <div class="field"><label>ADL score</label><input type="number" id="f_ADL" value="6"></div>
+            <div class="field"><label>Family history</label><select id="f_FamilyHistoryAlzheimers"><option value="0">No</option><option value="1">Yes</option></select></div>
+            <div class="field"><label>Memory complaints</label><select id="f_MemoryComplaints"><option value="0">No</option><option value="1">Yes</option></select></div>
+            <div class="field"><label>Cardiovascular disease</label><select id="f_CardiovascularDisease"><option value="0">No</option><option value="1">Yes</option></select></div>
+            <div class="field"><label>Depression</label><select id="f_Depression"><option value="0">No</option><option value="1">Yes</option></select></div>
+          </div>
+          <button class="btn" id="btnPredict">Run prediction</button>
+          <div class="agent-note">Connect your deployed Cloud Run URL in the script's <span class="mono">API_BASE_URL</span> constant. Until then, this runs in <strong>demo mode</strong> with a local approximation.</div>
+        </div>
+        <div class="card gauge-wrap">
+          <h3 style="align-self:flex-start;">Result</h3>
+          <div class="kpi-label">Risk probability</div>
+          <div class="gauge-value mono" id="riskValue">—</div>
+          <div class="risk-pill" id="riskPill" style="visibility:hidden;">—</div>
+          <ul class="factor-list" id="factorList"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== PATIENTS VIEW ===================== -->
+    <section class="view" id="view-patients">
+      <div class="view-head">
+        <div class="eyebrow">Demo records</div>
+        <h2>Patient Records</h2>
+        <p>Sample patient profiles (synthetic names over anonymized cohort values). Click a row to view history and jump to a prediction.</p>
+      </div>
+      <div class="card">
+        <div class="search-row">
+          <input type="text" id="patientSearch" placeholder="Search by name…">
+        </div>
+        <table>
+          <thead><tr><th>Name</th><th>Age</th><th>Gender</th><th>MMSE</th><th>Memory complaints</th><th>Prior diagnosis</th></tr></thead>
+          <tbody id="patientTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===================== APPOINTMENTS VIEW ===================== -->
+    <section class="view" id="view-appointments">
+      <div class="view-head">
+        <div class="eyebrow">Scheduling</div>
+        <h2>Book an Appointment</h2>
+        <p>Request a follow-up visit with a care team physician.</p>
+      </div>
+      <div class="card" style="max-width:480px;">
+        <div class="field" style="margin-bottom:14px;"><label>Patient name</label><input type="text" id="apptPatient" placeholder="e.g. Margaret Reyes"></div>
+        <div class="field" style="margin-bottom:14px;"><label>Doctor</label>
+          <select id="apptDoctor">
+            <option>Dr. ABC — Neurology</option>
+            <option>Dr. XYZ — Geriatrics</option>
+            <option>Dr. WMN — Neurology</option>
+          </select>
+        </div>
+        <div class="field-grid" style="margin-bottom:6px;">
+          <div class="field"><label>Date</label><input type="date" id="apptDate"></div>
+          <div class="field"><label>Time</label><input type="time" id="apptTime"></div>
+        </div>
+        <button class="btn" id="btnBook">Book appointment</button>
+        <div class="confirm-box" id="apptConfirm"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <button class="modal-close" id="modalClose">✕</button>
+    <h3 id="modalName"></h3>
+    <div id="modalBody"></div>
+    <button class="btn ghost" id="modalToAgent">Run risk prediction for this patient</button>
+  </div>
+</div>
+
+<script>
+// =====================================================================
+// CONFIG — replace with your deployed Cloud Run URL from Step 2
+// =====================================================================
+const API_BASE_URL = "https://risk-prediction-api-ubgdnmf2aq-uc.a.run.app"; // e.g. "https://risk-prediction-api-xxxx-uc.a.run.app"
+
+// ---------------- Navigation ----------------
+document.querySelectorAll('.nav-item').forEach(item=>{
+  item.addEventListener('click', ()=>{
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    item.classList.add('active');
+    document.getElementById('view-'+item.dataset.view).classList.add('active');
+  });
+});
+
+// ---------------- Stats charts ----------------
+new Chart(document.getElementById('chartDiagnosis'), {
+  type:'doughnut',
+  data:{labels:['No diagnosis','Diagnosed'],datasets:[{data:[1389,760],backgroundColor:['#4C948F','#C1483D'],borderWidth:0}]},
+  options:{plugins:{legend:{position:'bottom',labels:{font:{family:'Inter'}}}},cutout:'62%'}
+});
+new Chart(document.getElementById('chartMMSE'), {
+  type:'bar',
+  data:{labels:['Diagnosed','Not diagnosed'],datasets:[{data:[11.99,16.27],backgroundColor:['#C1483D','#2E6F6E'],borderRadius:6}]},
+  options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:30}}}
+});
+
+// ---------------- Synthetic patient dataset ----------------
+const patients = [
+  {name:"Margaret Reyes", age:70, gender:"Female", mmse:8.3, functional:5.8, adl:8.6, memory:"No", diagnosis:"No"},
+  {name:"Harold Bennett", age:60, gender:"Female", mmse:19.5, functional:6.0, adl:7.5, memory:"Yes", diagnosis:"No"},
+  {name:"Diane Foster", age:70, gender:"Female", mmse:18.7, functional:8.5, adl:5.0, memory:"No", diagnosis:"No"},
+  {name:"Walter Simmons", age:74, gender:"Female", mmse:16.0, functional:0.1, adl:9.7, memory:"Yes", diagnosis:"Yes"},
+  {name:"Nadia Petrov", age:86, gender:"Male", mmse:19.9, functional:5.4, adl:6.5, memory:"No", diagnosis:"No"},
+  {name:"Elias Moreno", age:77, gender:"Male", mmse:18.0, functional:8.7, adl:7.1, memory:"No", diagnosis:"No"},
+  {name:"Grace Whitfield", age:73, gender:"Male", mmse:23.2, functional:8.7, adl:7.8, memory:"Yes", diagnosis:"No"},
+  {name:"Arthur Delgado", age:77, gender:"Male", mmse:20.6, functional:7.1, adl:2.9, memory:"No", diagnosis:"No"},
+  {name:"Rosalind Ackerman", age:66, gender:"Female", mmse:20.3, functional:2.1, adl:3.5, memory:"No", diagnosis:"Yes"},
+  {name:"Theodore Nakashima", age:68, gender:"Female", mmse:26.1, functional:7.8, adl:6.6, memory:"No", diagnosis:"No"},
+  {name:"Beatrice Odom", age:76, gender:"Female", mmse:8.8, functional:9.0, adl:7.7, memory:"No", diagnosis:"No"},
+  {name:"Marcus Villanueva", age:75, gender:"Female", mmse:10.1, functional:3.4, adl:4.5, memory:"No", diagnosis:"Yes"},
+];
+
+function renderPatients(filter=""){
+  const body = document.getElementById('patientTableBody');
+  body.innerHTML = "";
+  patients.filter(p=>p.name.toLowerCase().includes(filter.toLowerCase())).forEach(p=>{
+    const tr = document.createElement('tr');
+    tr.className = "patient-row";
+    const tagColor = p.diagnosis==="Yes" ? "background:var(--coral-wash);color:var(--coral);" : "background:var(--clarity-wash);color:var(--clarity);";
+    tr.innerHTML = `<td>${p.name}</td><td>${p.age}</td><td>${p.gender}</td><td>${p.mmse.toFixed(1)}</td><td>${p.memory}</td><td><span class="tag" style="${tagColor}">${p.diagnosis}</span></td>`;
+    tr.addEventListener('click', ()=>openPatientModal(p));
+    body.appendChild(tr);
+  });
+}
+renderPatients();
+document.getElementById('patientSearch').addEventListener('input', e=>renderPatients(e.target.value));
+
+function openPatientModal(p){
+  document.getElementById('modalName').textContent = p.name;
+  document.getElementById('modalBody').innerHTML = `
+    <div class="modal-row"><span>Age</span><span>${p.age}</span></div>
+    <div class="modal-row"><span>Gender</span><span>${p.gender}</span></div>
+    <div class="modal-row"><span>MMSE score</span><span>${p.mmse.toFixed(1)}</span></div>
+    <div class="modal-row"><span>Functional assessment</span><span>${p.functional.toFixed(1)}</span></div>
+    <div class="modal-row"><span>ADL score</span><span>${p.adl.toFixed(1)}</span></div>
+    <div class="modal-row"><span>Memory complaints</span><span>${p.memory}</span></div>
+    <div class="modal-row"><span>Prior diagnosis</span><span>${p.diagnosis}</span></div>
+  `;
+  document.getElementById('modalBackdrop').classList.add('active');
+  document.getElementById('modalToAgent').onclick = ()=>{
+    document.getElementById('modalBackdrop').classList.remove('active');
+    document.getElementById('f_Age').value = p.age;
+    document.getElementById('f_Gender').value = p.gender==="Male" ? 1 : 0;
+    document.getElementById('f_MMSE').value = p.mmse.toFixed(1);
+    document.getElementById('f_FunctionalAssessment').value = p.functional.toFixed(1);
+    document.getElementById('f_ADL').value = p.adl.toFixed(1);
+    document.getElementById('f_MemoryComplaints').value = p.memory==="Yes" ? 1 : 0;
+    document.querySelector('.nav-item[data-view="agent"]').click();
+  };
+}
+document.getElementById('modalClose').addEventListener('click', ()=>document.getElementById('modalBackdrop').classList.remove('active'));
+
+// ---------------- Risk Prediction Agent ----------------
+document.getElementById('btnPredict').addEventListener('click', async ()=>{
+  const payload = {
+    Age:+val('f_Age'), Gender:+val('f_Gender'), Ethnicity:0, EducationLevel:1,
+    BMI:+val('f_BMI'), Smoking:0, AlcoholConsumption:5, PhysicalActivity:5, DietQuality:5, SleepQuality:7,
+    FamilyHistoryAlzheimers:+val('f_FamilyHistoryAlzheimers'), CardiovascularDisease:+val('f_CardiovascularDisease'),
+    Diabetes:0, Depression:+val('f_Depression'), HeadInjury:0, Hypertension:0,
+    SystolicBP:130, DiastolicBP:80, CholesterolTotal:200, CholesterolLDL:110, CholesterolHDL:50, CholesterolTriglycerides:150,
+    MMSE:+val('f_MMSE'), FunctionalAssessment:+val('f_FunctionalAssessment'),
+    MemoryComplaints:+val('f_MemoryComplaints'), BehavioralProblems:0, ADL:+val('f_ADL'),
+    Confusion:0, Disorientation:0, PersonalityChanges:0, DifficultyCompletingTasks:0, Forgetfulness:0
+  };
+
+  let result;
+  if (API_BASE_URL) {
+    try{
+      const res = await fetch(API_BASE_URL + "/predict", {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
+      });
+      result = await res.json();
+    }catch(e){
+      result = demoPredict(payload);
+    }
+  } else {
+    result = demoPredict(payload);
+  }
+  renderResult(result);
+});
+
+function val(id){ return document.getElementById(id).value; }
+
+// Rough local approximation so the UI is testable before the API is deployed.
+// This is NOT the real model — replace API_BASE_URL to use the actual XGBoost predictions.
+function demoPredict(p){
+  let score = 0;
+  score += (30 - p.MMSE) / 30 * 0.4;
+  score += (10 - p.FunctionalAssessment) / 10 * 0.2;
+  score += (10 - p.ADL) / 10 * 0.15;
+  score += p.MemoryComplaints * 0.1;
+  score += p.FamilyHistoryAlzheimers * 0.08;
+  score += p.CardiovascularDisease * 0.04;
+  score += p.Depression * 0.03;
+  score = Math.max(0, Math.min(1, score));
+  const category = score < 0.33 ? "Low" : score < 0.66 ? "Moderate" : "High";
+  return {risk_probability:score, risk_category:category, top_contributing_factors:["MMSE","FunctionalAssessment","ADL","MemoryComplaints","FamilyHistoryAlzheimers"]};
+}
+
+function renderResult(r){
+  document.getElementById('riskValue').textContent = (r.risk_probability*100).toFixed(1) + "%";
+  const pill = document.getElementById('riskPill');
+  pill.textContent = r.risk_category + " risk";
+  pill.className = "risk-pill risk-" + r.risk_category;
+  pill.style.visibility = "visible";
+  const list = document.getElementById('factorList');
+  list.innerHTML = "";
+  r.top_contributing_factors.forEach(f=>{
+    const li = document.createElement('li');
+    li.textContent = f;
+    list.appendChild(li);
+  });
+}
+
+// ---------------- Appointments ----------------
+document.getElementById('btnBook').addEventListener('click', ()=>{
+  const name = val('apptPatient') || "Patient";
+  const doctor = val('apptDoctor');
+  const date = val('apptDate');
+  const time = val('apptTime');
+  const box = document.getElementById('apptConfirm');
+  if(!date || !time){
+    box.classList.add('active');
+    box.textContent = "Please choose a date and time.";
+    return;
+  }
+  box.classList.add('active');
+  box.textContent = `Booked: ${name} with ${doctor} on ${date} at ${time}. (Demo only — connect this button to Google Calendar API or your scheduling backend to make it real.)`;
+});
+</script>
+</body>
+</html>
