@@ -10,6 +10,8 @@ Deploy target: Cloud Run (scales to zero -> free tier friendly).
 
 import json
 import os
+import logging
+from contextlib import asynccontextmanager
 from typing import Optional
 
 import xgboost as xgb
@@ -19,43 +21,70 @@ from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import storage
 from pydantic import BaseModel, Field
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("risk-prediction-api")
+
 BUCKET_NAME = os.environ.get("MODEL_BUCKET", "alzheimer-501509-models")
 MODEL_PATH_IN_BUCKET = os.environ.get("MODEL_PATH", "v1/xgb_alzheimers_model.json")
 SCHEMA_PATH_IN_BUCKET = os.environ.get("SCHEMA_PATH", "v1/feature_schema.json")
 LOCAL_MODEL_PATH = "/tmp/model.json"
 LOCAL_SCHEMA_PATH = "/tmp/feature_schema.json"
 
-app = FastAPI(title="Alzheimer's Risk Prediction API", version="1.0")
+model: Optional[xgb.Booster] = None
+feature_schema: Optional[dict] = None
 
-# Allow the dashboard (any origin, tighten this to your real domain in production)
+
+def download_and_init_model():
+    """Helper function to load model gracefully without crashing startup."""
+    global model, feature_schema
+    if model is not None and feature_schema is not None:
+        return True
+
+    try:
+        logger.info(f"Attempting to download artifacts from GCS bucket: {BUCKET_NAME}...")
+        client = storage.Client()
+        bucket = client.bucket(BUCKET_NAME)
+        
+        # Download files to /tmp/
+        bucket.blob(MODEL_PATH_IN_BUCKET).download_to_filename(LOCAL_MODEL_PATH)
+        bucket.blob(SCHEMA_PATH_IN_BUCKET).download_to_filename(LOCAL_SCHEMA_PATH)
+
+        booster = xgb.Booster()
+        booster.load_model(LOCAL_MODEL_PATH)
+        model = booster
+
+        with open(LOCAL_SCHEMA_PATH) as f:
+            feature_schema = json.load(f)
+
+        logger.info("Model and feature schema successfully loaded into memory.")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to load model from GCS: {str(e)}", exc_info=True)
+        return False
+
+
+# Modern FastAPI Lifespan context manager replacing deprecated @app.on_event("startup")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Attempt to load model during startup non-fatally
+    download_and_init_model()
+    yield
+
+
+app = FastAPI(
+    title="Alzheimer's Risk Prediction API", 
+    version="1.0",
+    lifespan=lifespan
+)
+
+# Allow cross-origin requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-model: Optional[xgb.Booster] = None
-feature_schema: Optional[dict] = None
-
-
-def download_from_gcs():
-    client = storage.Client()
-    bucket = client.bucket(BUCKET_NAME)
-    bucket.blob(MODEL_PATH_IN_BUCKET).download_to_filename(LOCAL_MODEL_PATH)
-    bucket.blob(SCHEMA_PATH_IN_BUCKET).download_to_filename(LOCAL_SCHEMA_PATH)
-
-
-@app.on_event("startup")
-def load_model():
-    global model, feature_schema
-    download_from_gcs()
-    booster = xgb.Booster()
-    booster.load_model(LOCAL_MODEL_PATH)
-    model = booster
-    with open(LOCAL_SCHEMA_PATH) as f:
-        feature_schema = json.load(f)
-    print("Model + schema loaded.")
 
 
 class PatientInput(BaseModel):
@@ -120,6 +149,7 @@ def risk_category(prob: float) -> str:
         return "Moderate"
     return "High"
 
+
 @app.get("/")
 def read_root():
     return {
@@ -127,15 +157,25 @@ def read_root():
         "message": "Alzheimer's Risk Prediction API is running. Append /docs to the URL to view interactive documentation."
     }
 
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "model_loaded": model is not None}
+    return {
+        "status": "ok", 
+        "model_loaded": model is not None and feature_schema is not None
+    }
 
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict(patient: PatientInput):
-    if model is None:
-        raise HTTPException(503, "Model not loaded yet")
+    # Lazy load if it failed during startup or hasn't completed yet
+    if model is None or feature_schema is None:
+        success = download_and_init_model()
+        if not success or model is None or feature_schema is None:
+            raise HTTPException(
+                status_code=503, 
+                detail="Model unavailable. Check GCS bucket access permissions and logs."
+            )
 
     df = build_feature_row(patient)
     dmatrix = xgb.DMatrix(df, feature_names=feature_schema["feature_names"])
